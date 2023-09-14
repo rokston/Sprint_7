@@ -1,3 +1,4 @@
+import com.github.javafaker.Faker;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.hamcrest.CoreMatchers;
@@ -21,85 +22,74 @@ public class CreateCourierTest {
     @Before
     public void setUp() {
 
-        RestAssured.baseURI = "http://qa-scooter.praktikum-services.ru/";
+        RestAssured.baseURI = ApiEndpoint.BASE_ADDRESS;
+    }
+
+    Faker faker = new Faker();
+    String login = faker.name().username();
+    String password = faker.random().toString();
+    String firstName = faker.name().firstName();
+
+    @Step("Создание курьера")
+    public Response createCourier(Courier courier)
+    {
+        Response response =
+                given()
+                        .header("Content-type", "application/json")
+                        .and()
+                        .body(courier)
+                        .when()
+                        .post(ApiEndpoint.CREATE_COURIER);
+
+        return response;
     }
 
     @Test
     @DisplayName("Создание курьера, успешное")
     public void postCreateCourier() {
 
-        Courier newCourier = new Courier("dodo_4", "1234", "dodoFirstName");
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
+        Courier newCourier = new Courier(login, password, firstName);
+
+        Response response = createCourier(newCourier);
         response.then()
                 .statusCode(201);
         response.then()
                 .assertThat().body("ok", is(true));
-        cleanUp(newCourier);
+
     }
 
     @Test
     @DisplayName("Создание повторяющегося курьера, неуспешное")
     public void postCreateSameCourierFail() {
 
-        Courier newCourier = new Courier("dodo_4", "1234", "dodoFirstName");
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
-
-        Response responseFail =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
+        Courier newCourier = new Courier(login, password, firstName);
+        Response response = createCourier(newCourier);
+        Response responseFail = createCourier(newCourier);
         responseFail.then()
                 .statusCode(409);
         responseFail.then()
                // .assertThat().body("message", equalTo("Этот логин уже используется")); //баг относительно документации
                 .assertThat().body("message", equalTo("Этот логин уже используется. Попробуйте другой."));
-        cleanUp(newCourier);
+
     }
 
     @Test
     @DisplayName("Создание курьера с существующим логином  другим паролем, неуспешное")
     public void postCreateSameCourierOtherPasswordFail() {
 
-        Courier newCourier = new Courier("dodo_4", "1234", "dodoFirstName");
+        Courier newCourier = new Courier(login, password, firstName);
 
-        Courier newCourierOtherPassword = new Courier("dodo_4", "1235", "dodoFirstName");
-            Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
+        Courier newCourierOtherPassword = new Courier(newCourier.getLogin(), newCourier.getPassword() + "qq", newCourier.getFirstName());
 
-        Response responseFail =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourierOtherPassword)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
+        Response response = createCourier(newCourier);
+        Response responseFail = createCourier(newCourierOtherPassword);
+
         responseFail.then()
                 .statusCode(409);
         responseFail.then()
                 // .assertThat().body("message", equalTo("Этот логин уже используется")); //баг относительно документации
                 .assertThat().body("message", equalTo("Этот логин уже используется. Попробуйте другой."));
 
-        cleanUp(newCourier);
 
     }
 
@@ -107,15 +97,8 @@ public class CreateCourierTest {
     @DisplayName("Создание курьера без пароля, неуспешное")
     public void postCreateCourierWithoutPasswordFail() {
 
-        Courier newCourier = new Courier("dodo_4", "", "dodoFirstName");
-
-        Response responseFail =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
+        Courier newCourier = new Courier(login, "", firstName);
+        Response responseFail = createCourier(newCourier);
         responseFail.then()
                 .statusCode(400);
         responseFail.then()
@@ -127,15 +110,9 @@ public class CreateCourierTest {
     @DisplayName("Создание курьера без логина, неуспешное")
     public void postCreateCourierWithoutLoginFail() {
 
-        Courier newCourier = new Courier("", "1234", "dodoFirstName");
+        Courier newCourier = new Courier("", password, firstName);
+        Response responseFail = createCourier(newCourier);
 
-        Response responseFail =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
         responseFail.then()
                 .statusCode(400);
         responseFail.then()
@@ -146,18 +123,12 @@ public class CreateCourierTest {
     @DisplayName("Создание курьера без имени, успешное")
     public void postCreateCourierWithoutFirstName() {
 
-        Courier newCourier = new Courier("dodo_4", "1234", "");
+        Courier newCourier = new Courier(login, password, "");
+        Response responseFail = createCourier(newCourier);
 
-        Response responseFail =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(newCourier)
-                        .when()
-                        .post(ApiEndpoint.CREATE_COURIER);
         responseFail.then()
                 .statusCode(201);
-        cleanUp(newCourier);
+
     }
 
     public int loginCourier(Courier courier){ //авторизация курьера, с целью получения его id
@@ -170,20 +141,30 @@ public class CreateCourierTest {
                         .body(credentials)
                         .when()
                         .post(ApiEndpoint.LOGIN_COURIER);
-        response.then()
-                .statusCode(200);
-        int courierId = response
-                .then().extract().body().path("id");
+        int code = response.then().
+                extract().statusCode();
+        int courierId;
+        if (code == 200) {
+               courierId = response
+                .then().extract().body().path("id");}
+        else {
+            courierId = 0;
+        }
         return courierId;
     }
 
-
- public void cleanUp(Courier courier) { //удаление курьера
-        int id = loginCourier(courier);
+@After
+ public void cleanUp() { //удаление курьера
+        Courier newCourier = new Courier(login, password, firstName);
+        int id = loginCourier(newCourier);
+        if (id > 0) {
      Response response = given()
              .header("Content-type", "application/json")
              .when()
              .delete(ApiEndpoint.DELETE_COURIER + id);
-     response.then().statusCode(200);
+     response.then().statusCode(200);}
+        else  {
+            System.out.println("Cannot delete not existing courier");
+        }
  }
 }

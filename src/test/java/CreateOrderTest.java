@@ -61,13 +61,11 @@ public class CreateOrderTest {
      @Before
     public void setUp() {
 
-        RestAssured.baseURI = "http://qa-scooter.praktikum-services.ru/";
+        RestAssured.baseURI = ApiEndpoint.BASE_ADDRESS;
     }
 
-    @Test
-    @DisplayName("Параметризованный тест создания заказа")
-    public void createOrderParamTest(){
-        Order order = new Order(firstName, lastName, address, metroStation, phone, rentTime, deliveryDate,comment, color);
+    @Step("Создание заказа")
+    public Response createOrder(Order order){
         Response response =
                 given()
                         .header("Content-type", "application/json")
@@ -75,6 +73,15 @@ public class CreateOrderTest {
                         .body(order)
                         .when()
                         .post(ApiEndpoint.CREATE_ORDER);
+        return response;
+    }
+
+    @Test
+    @DisplayName("Параметризованный тест создания заказа")
+    public void createOrderParamTest(){
+        Order order = new Order(firstName, lastName, address, metroStation, phone, rentTime, deliveryDate,comment, color);
+        Response response = createOrder(order);
+
         response.then().statusCode(statusCode);
 
         String testStr = response.then().extract().body().asString();

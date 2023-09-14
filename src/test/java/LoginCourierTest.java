@@ -1,3 +1,4 @@
+import com.github.javafaker.Faker;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.*;
@@ -11,10 +12,16 @@ import io.qameta.allure.Step; // импорт Step
 
 //тестируем варианты авторизации курьера
 public class LoginCourierTest {
+    Faker faker = new Faker();
+    String login = faker.name().username();
+    String password = faker.random().toString();
+    String firstName = faker.name().firstName();
 
-    Courier newCourier = new Courier("dodo_4", "1234", "dodoFirstName"); //данные основного курьера
+  //данные основного курьера
+    Courier newCourier = new Courier(login, password, firstName);
     Credentials credentials = new Credentials(newCourier.getLogin(), newCourier.getPassword()); //логин и пароль основного курьера
 
+    @Step("Создание курьера")
 public void createCourier(Courier courier) { //создание курьера с целью позже под ним логиниться
         Response response =
                 given()
@@ -28,12 +35,30 @@ public void createCourier(Courier courier) { //создание курьера �
 
     }
 
+    @Step("логин курьера")
+    public Response loginCourier(Credentials credentials){
+        Response response =
+                given()
+                        .header("Content-type", "application/json")
+                        .and()
+                        .body(credentials)
+                        .when()
+                        .post(ApiEndpoint.LOGIN_COURIER);
+        return response;
+    }
 
+    @Step("удаление курьера")
+    public Response deleteCourier(int id){
+        Response response = given()
+                .header("Content-type", "application/json")
+                .when()
+                .delete(ApiEndpoint.DELETE_COURIER + id);
+        return response;
+    }
 
     @Before
     public void setUp() {
-
-        RestAssured.baseURI = "http://qa-scooter.praktikum-services.ru/";
+        RestAssured.baseURI = ApiEndpoint.BASE_ADDRESS;
     }
 
 
@@ -42,13 +67,7 @@ public void createCourier(Courier courier) { //создание курьера �
     @DisplayName("Авторизация курьера, успешная")
     public void loginCourierOk() {
         createCourier(newCourier);
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(credentials)
-                        .when()
-                        .post(ApiEndpoint.LOGIN_COURIER);
+        Response response = loginCourier(credentials);
         response.then()
                 .statusCode(200);
         response
@@ -62,13 +81,8 @@ public void createCourier(Courier courier) { //создание курьера �
     public void loginCourierLoginMissedFail() {
         Credentials credentialsLoginMissed = new Credentials("", newCourier.getPassword());
         createCourier(newCourier);
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(credentialsLoginMissed)
-                        .when()
-                        .post(ApiEndpoint.LOGIN_COURIER);
+        Response response = loginCourier(credentialsLoginMissed);
+
         response.then()
                 .statusCode(400);
         response.then()
@@ -81,13 +95,8 @@ public void createCourier(Courier courier) { //создание курьера �
     public void loginCourierPasswordMissedFail() {
         Credentials credentialsPasswordMissed = new Credentials(newCourier.getLogin(), "");
         createCourier(newCourier);
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(credentialsPasswordMissed)
-                        .when()
-                        .post(ApiEndpoint.LOGIN_COURIER);
+        Response response = loginCourier(credentialsPasswordMissed);
+
         response.then()
                 .statusCode(400);
         response.then()
@@ -98,15 +107,11 @@ public void createCourier(Courier courier) { //создание курьера �
     @Test
     @DisplayName("Авторизация курьера с неверным логином и существующим паролем, неуспешная")
     public void loginCourierWrongLoginFail() {
-        Credentials wrongLoginCredentials = new Credentials("toto", "1234" );
+
         createCourier(newCourier);
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(wrongLoginCredentials)
-                        .when()
-                        .post(ApiEndpoint.LOGIN_COURIER);
+        Credentials wrongLoginCredentials = new Credentials(newCourier.getLogin() + "oops", newCourier.getPassword());
+        Response response = loginCourier(wrongLoginCredentials);
+
         response.then()
                 .statusCode(404);
         response.then()
@@ -117,15 +122,10 @@ public void createCourier(Courier courier) { //создание курьера �
     @Test
     @DisplayName("Авторизация курьера с существующим логином и неверным паролем, неуспешная")
     public void loginCourierWrongPasswordFail() {
-        Credentials wrongPasswordCredentials = new Credentials("dodo_4", "1534" );
         createCourier(newCourier);
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(wrongPasswordCredentials)
-                        .when()
-                        .post(ApiEndpoint.LOGIN_COURIER);
+        Credentials wrongPasswordCredentials = new Credentials(newCourier.getLogin(), newCourier.getPassword() + "ff" );
+        Response response = loginCourier(wrongPasswordCredentials);
+
         response.then()
                 .statusCode(404);
         response.then()
@@ -134,14 +134,8 @@ public void createCourier(Courier courier) { //создание курьера �
     }
 
    public int loginCourier(Courier courier){ //авторизация курьера с целью получения id
+        Response response = loginCourier(credentials);
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(credentials)
-                        .when()
-                        .post(ApiEndpoint.LOGIN_COURIER);
         response.then()
                 .statusCode(200);
         int courierId = response
@@ -149,13 +143,11 @@ public void createCourier(Courier courier) { //создание курьера �
         return courierId;
     }
 
+
     @After
     public void cleanUp() { //удаление курьера
         int id = loginCourier(newCourier);
-        Response response = given()
-                .header("Content-type", "application/json")
-                .when()
-                .delete(ApiEndpoint.DELETE_COURIER + id);
+        Response response = deleteCourier(id);
         response.then().statusCode(200);
     }
 
